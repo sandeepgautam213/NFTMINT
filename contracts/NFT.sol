@@ -7,9 +7,12 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract NFT is ERC721URIStorage, ERC721Enumerable, Ownable {
     uint public mintPrice;
+    uint private nextTokenId;
+    mapping(uint256 => address) private _tokenOwners;
 
     bool public isPublicMintEnabled;
     mapping(address => uint) public walletMints;
+    uint256 public totalsupply;
 
     constructor(
         string memory _name,
@@ -17,6 +20,7 @@ contract NFT is ERC721URIStorage, ERC721Enumerable, Ownable {
         uint _mintPrice
     ) payable ERC721(_name, _symbol) Ownable(msg.sender) {
         mintPrice = _mintPrice;
+        totalsupply = 0;
     }
 
     function setIsPublicMintEnabled(
@@ -31,18 +35,26 @@ contract NFT is ERC721URIStorage, ERC721Enumerable, Ownable {
         );
         require(success, "Withdraw failed");
     }
+    function Price() public returns (uint256) {
+        if (totalsupply == 0) {
+            return 100000000000000; // Base price for the first token
+        }
+
+        mintPrice = (1000000000000000000 * totalsupply * totalsupply) / 8000; // Calculate price based on the formula
+        return mintPrice;
+    }
 
     function mint(string calldata _uri) public payable {
-        require(isPublicMintEnabled, "Public minting not enabled");
+        // require(isPublicMintEnabled, "Public minting not enabled");
         require(msg.value == mintPrice, "Wrong mint value");
-
-        uint newTokenId = totalSupply();
+        uint newTokenId = _getNextTokenId();
         walletMints[msg.sender]++;
         _safeMint(msg.sender, newTokenId);
         _setTokenURI(newTokenId, _uri);
+        totalsupply++;
+        Price();
     }
 
-    // required overrides
     function _update(
         address to,
         uint256 tokenId,
@@ -68,5 +80,36 @@ contract NFT is ERC721URIStorage, ERC721Enumerable, Ownable {
         bytes4 interfaceId
     ) public view override(ERC721Enumerable, ERC721URIStorage) returns (bool) {
         return super.supportsInterface(interfaceId);
+    }
+
+    function _getNextTokenId() private returns (uint256) {
+        nextTokenId++;
+        return nextTokenId;
+    }
+
+    function burn() external payable {
+        // require(nextTokenId > 0, "No tokens to burn");
+        uint256 lastTokenId = _getLastTokenId(msg.sender);
+        //require(lastTokenId != 0, "You don't own any tokens");
+        totalsupply--;
+        Price(); // Update the price
+
+        _burn(lastTokenId);
+
+        uint256 currentPrice = mintPrice; // Capture the updated price
+
+        // Transfer the updated price
+        payable(msg.sender).transfer(currentPrice);
+    }
+
+    function _getLastTokenId(address owner) private view returns (uint256) {
+        uint ownerTokens = balanceOf(owner) - 1;
+        // for (uint256 i = nextTokenId; i >= 0; i--) {
+        //     if (_tokenOwners[i] == owner) {
+        //         return i;
+        //     }
+        // }
+        uint lastTokenId = tokenOfOwnerByIndex(owner, ownerTokens);
+        return lastTokenId;
     }
 }

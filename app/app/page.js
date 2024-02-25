@@ -14,10 +14,16 @@ export default function Home() {
   const [account, setAccount] = useState("");
   const [contract, setContract] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [burnloading, setBurnloading] = useState(false);
   const [connect, setConnect] = useState("");
   const [nfts, setNfts] = useState([]);
+  const [mintPrice, setMintPrice] = useState(0);
+  const [totalSupply, setTotalSupply] = useState(0);
+  const [burnPrice, setBurnPrice] = useState(0);
 
-  const contractAddress = "0x1F3dF7625888587230220a369f2e64b42A8Dfd8D";
+
+
+  const contractAddress = "0x47255dB42274817C817B8A55CFBF99365efe4eB5";
 
   useEffect(() => {
     setConnect(localStorage.getItem("address"));
@@ -51,8 +57,16 @@ export default function Home() {
       try {
         const provider = new ethers.BrowserProvider(window.ethereum);
         const signer = await provider.getSigner();
-        const contract = new ethers.Contract(contractAddress, NFT.abi, signer);
+        const contract = new ethers.Contract(contractAddress, NFT, signer);
+        //console.log(NFT.abi);
+        
+        //console.log(contract);
         setContract(contract);
+        const mintPrice = await contract.mintPrice();
+        setMintPrice(ethers.formatEther(Number(mintPrice).toString()));
+        console.log(mintPrice);
+        setBurnPrice(localStorage.getItem("burnPrice"));
+       // setBurnPrice(burnPrice);
 
         const allNFTs = [];
         const totalNFTs = parseInt(
@@ -68,7 +82,7 @@ export default function Home() {
 
           if (tokenMetadatURI.startsWith("ipfs://")) {
             tokenMetadatURI = `https://ipfs.io/ipfs/${
-              tokenMetadatURI.split("ipfs://")[2]
+              tokenMetadatURI.split("ipfs://")[1]
               //console.log()
             }`;
           }
@@ -79,6 +93,8 @@ export default function Home() {
           allNFTs.push(tokenMetadata);
         }
         setNfts(allNFTs);
+       // const mintPrice = await contract.mintPrice();
+       // setMintPrice(Number(mintPrice));
       } catch (error) {
         const errorMessage = error.message.split("(")[0];
         toast(errorMessage);
@@ -134,20 +150,58 @@ export default function Home() {
 
     setLoading(true);
     try {
-      const options = { value: ethers.parseEther("0.001") };
-      // const mints = await contract.walletMints(account);
-      // if (parseInt(mints) > 0) {
-      //   throw new Error("You have already minted the nft.");
-      // }
+      const mintPrice = await contract.mintPrice();
+     // console.log("Mint Price:", mintPrice.toString());
+     setMintPrice(ethers.formatEther(Number(mintPrice).toString()));
+     const options = { value: Number(mintPrice).toString() };
+
+
+      //console.log(mintPrice);
+     // console.log(contract);
       const mint = await contract.mint(tokenURI, options);
-      await mint.wait();
+      
+      await mint.wait(Number(await contract.mintPrice()));
       toast("Mint Successful");
+      setmintPrice()
     } catch (error) {
+      console.log(error);
       const errorMessage = error.message.split("(")[0];
       toast(errorMessage);
     }
     setLoading(false);
   };
+  const burn = async () => {
+    try {
+      setBurnloading(true);
+     // const mintPrice = await contract.mintPrice();
+     // setMintPrice(ethers.formatEther(Number(mintPrice).toString()));
+
+      const supply = await contract.totalSupply();
+      console.log(supply);
+
+      const n = Number(supply)-1;
+      const burnPrice = (n*n)/8000;
+      setBurnPrice(burnPrice);
+      if (Number(supply) === 1) {
+        setBurnPrice(0.0001);
+      }
+      localStorage.setItem(
+        "burnPrice",
+        Number(supply) === 1 ? "0.0001" : burnPrice.toString()
+      );
+      
+    
+      const burn = await contract.burn();
+      await burn.wait();
+      toast("Mint Successful");
+    } catch (error) {
+      const errorMessage = error.message.split("(")[0];
+      toast(errorMessage);
+    }
+    setBurnloading(false)
+  };
+    
+  
 
   return (
     <>
@@ -173,16 +227,40 @@ export default function Home() {
           </div>
         </div>
         {connect && (
-          <button className="ml-4 bg-blue-500 text-white px-6 py-3 rounded-md shadow-md hover:bg-blue-400 focus:outline-none" onClick={mintNFT}>
-            {!loading ? "Mint Your NFT" : <p className="spinner"></p>}
+          <>
+          <button className="ml-4 bg-blue-500 text-white px-6 py-3 rounded-md shadow-md hover:bg-blue-400 focus:outline-none" onClick={mintNFT}
+           disabled={loading || burnloading}>
+           {!loading && `Mint Price  = ${mintPrice} Eth`}
+                  {loading && (
+                    <div>
+                      Minting <p className={styles.spinner}></p>
+                    </div>
+                  )}
           </button>
+          { (
+                  <button
+                    disabled={burnloading || loading}
+                    className="ml-4 bg-blue-500 text-white px-6 py-3 rounded-md shadow-md hover:bg-blue-400 focus:outline-none"
+                    onClick={burn}
+                  >
+                    {!burnloading && `Burn Price = ${burnPrice} Eth`}
+                    {burnloading && (
+                      <div>
+                        Burning <p className={styles.spinner}></p>
+                      </div>
+                    )}
+                  </button>
+                )}
+
+
+          
+          
+
+          </>
         )}
+        
       </div>
-      <div className="mt-8 grid grid-cols-3 gap-4">
-        {nfts.map((data, index) => (
-          <NFT1 image={data.image} key={index} />
-        ))}
-      </div>
+     
     </div>
   </div>
 </>
