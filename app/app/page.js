@@ -193,7 +193,7 @@ export default function Home() {
     
       const burn = await contract.burn();
       await burn.wait();
-      toast("Mint Successful");
+      toast("Burn Successful");
     } catch (error) {
       const errorMessage = error.message.split("(")[0];
       toast(errorMessage);
